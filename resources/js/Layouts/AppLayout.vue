@@ -13,11 +13,25 @@ const url = computed(() => page.url);
                 <span class="text-sm font-semibold tracking-tight">PCC Inventory</span>
                 <div class="flex items-center gap-1 ml-2">
                     <Link
+                        href="/pos"
+                        class="text-sm px-3 py-1 transition-colors"
+                        :class="url.startsWith('/pos') ? 'text-black font-medium' : 'text-gray-400 hover:text-black'"
+                    >
+                        POS
+                    </Link>
+                    <Link
                         href="/"
                         class="text-sm px-3 py-1 transition-colors"
                         :class="url === '/' ? 'text-black font-medium' : 'text-gray-400 hover:text-black'"
                     >
                         Items
+                    </Link>
+                    <Link
+                        href="/products"
+                        class="text-sm px-3 py-1 transition-colors"
+                        :class="url.startsWith('/products') ? 'text-black font-medium' : 'text-gray-400 hover:text-black'"
+                    >
+                        Products
                     </Link>
                     <Link
                         href="/units"

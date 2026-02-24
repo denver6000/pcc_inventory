@@ -24,6 +24,7 @@ class ItemController extends Controller
             'name'          => 'required|string|max:255',
             'image'         => 'nullable|image|max:4096',
             'unit_id'       => 'nullable|exists:units,id',
+            'cost_per_unit' => 'nullable|numeric|min:0',
             'default_stock' => 'required|numeric|min:0',
         ]);
 
@@ -45,6 +46,7 @@ class ItemController extends Controller
             'name'          => 'required|string|max:255',
             'image'         => 'nullable|image|max:4096',
             'unit_id'       => 'nullable|exists:units,id',
+            'cost_per_unit' => 'nullable|numeric|min:0',
             'default_stock' => 'required|numeric|min:0',
             'current_stock' => 'required|numeric|min:0',
         ]);

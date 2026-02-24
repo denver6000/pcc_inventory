@@ -1,12 +1,15 @@
 # Copilot instructions
 
 ## Project overview
+PCC Inventory & POS system — a Laravel 12 + Inertia.js (Vue 3) SPA for managing stock items, defining products with recipes, and processing sales through a point-of-sale interface.
+
 - Laravel 12 + Inertia.js (Vue 3) SPA stack. Routes return `Inertia::render('PageName', $props)` instead of `view()`. The single HTML shell lives in [resources/views/app.blade.php](resources/views/app.blade.php).
-- Vue page components live in [resources/js/Pages/](resources/js/Pages/) (e.g. `Welcome.vue`). Inertia resolves them by name: `'Welcome'` → `./Pages/Welcome.vue`.
-- Shared server-side data (auth user, flash messages, etc.) is exposed via Inertia's `HandleInertiaRequests` middleware and accessed in components through `usePage().props`.
-- Eloquent models live in [app/Models](app/Models); the current model is `User` in [app/Models/User.php](app/Models/User.php).
+- Vue page components live in [resources/js/Pages/](resources/js/Pages/). Inertia resolves them by name: `'Items/Index'` → `./Pages/Items/Index.vue`.
+- Shared server-side data (auth user, flash messages, etc.) is exposed via Inertia's `HandleInertiaRequests` middleware ([app/Http/Middleware/HandleInertiaRequests.php](app/Http/Middleware/HandleInertiaRequests.php)) and accessed in components through `usePage().props`.
+- Eloquent models live in [app/Models](app/Models).
 - Database schema changes go through migrations in [database/migrations](database/migrations).
 - Frontend assets are built with Vite + Tailwind v4 + `@vitejs/plugin-vue`; entrypoints are [resources/css/app.css](resources/css/app.css) and [resources/js/app.js](resources/js/app.js) as configured in [vite.config.js](vite.config.js).
+- Tailwind CSS v4 is processed via **`@tailwindcss/postcss`** (in [postcss.config.js](postcss.config.js)), NOT via `@tailwindcss/vite` (removed to fix Linux/EC2 esbuild deadlock).
 
 ## Developer workflows (from composer scripts)
 - Initial setup: `composer run setup` (installs PHP deps, copies .env, generates key, runs migrations, installs/builds frontend assets). See [composer.json](composer.json).
@@ -27,3 +30,64 @@
 - Inertia server adapter: `inertiajs/inertia-laravel` (PHP). Client adapter: `@inertiajs/vue3` (JS). Page resolution is set up in [resources/js/app.js](resources/js/app.js).
 - HTTP entry point is [public/index.php](public/index.php) with framework bootstrap in [bootstrap/app.php](bootstrap/app.php).
 - The Inertia root Blade template is [resources/views/app.blade.php](resources/views/app.blade.php) — it must contain `@inertia` and `@inertiaHead`.
+
+## Domain models
+
+### Unit (`units` table)
+- `name`, `abbreviation` — measurement unit (e.g. kg, L, pcs).
+- `hasMany(Item::class)`.
+
+### Item (`items` table) — stock / raw ingredient
+- `name`, `image_path`, `unit_id` (FK → units), `cost_per_unit` (decimal, cost for 1 unit of stock), `default_stock`, `current_stock`.
+- `belongsTo(Unit::class)`.
+- `cost_per_unit`, `default_stock`, `current_stock` cast to `float`.
+- When a new Item is created, `current_stock` is seeded from `default_stock`.
+
+### Product (`products` table) — sellable item with a recipe
+- `name`, `image_path`, `selling_price` (decimal, 0 = auto-price from recipe cost).
+- `hasMany(ProductIngredient::class)`, `hasMany(Sale::class)`.
+- `selling_price` cast to `float`.
+- `getComputedCostAttribute(): float` — sums `ingredient.quantity × item.cost_per_unit` for all recipe lines. Requires `ingredients.item` to be eager-loaded; returns 0.0 otherwise. **Do not add to `$appends`** — append manually in each controller with `->each->append('computed_cost')` after eager loading.
+
+### ProductIngredient (`product_ingredients` table)
+- `product_id`, `item_id`, `quantity` — one recipe line.
+- `belongsTo(Product::class)`, `belongsTo(Item::class)`.
+
+### Sale (`sales` table)
+- `product_id`, `quantity_sold`, `unit_price`, `total_price`, `notes`.
+- `unit_price` = effective price per unit at time of sale (selling_price if > 0, else computed_cost).
+- `total_price` = `unit_price × quantity_sold`.
+- All numeric fields cast to `float`.
+
+## Pricing logic
+Effective price at checkout (both in `CheckoutController` and `Pos/Index.vue`):
+```php
+$effectivePrice = $product->selling_price > 0
+    ? (float) $product->selling_price
+    : $product->computed_cost;   // sum of ingredient costs
+```
+```js
+const effectivePrice = product.selling_price > 0
+    ? parseFloat(product.selling_price)
+    : parseFloat(product.computed_cost ?? 0);
+```
+
+## Pages & routes
+| Route | Controller | Vue Page | Purpose |
+|---|---|---|---|
+| `GET /pos` | `PosController@index` | `Pos/Index` | POS cashier grid — click product → sell panel |
+| `GET /` | `ItemController@index` | `Items/Index` | Stock item CRUD |
+| `GET /products` | `ProductController@index` | `Products/Index` | Product + recipe CRUD |
+| `GET /units` | `UnitController@index` | `Units/Index` | Unit CRUD |
+| `POST /products/{product}/checkout` | `CheckoutController@store` | — | Deduct stock, record Sale |
+
+Nav order in `AppLayout.vue`: **POS → Items → Products → Units**.
+
+## Checkout flow (`CheckoutController::store`)
+1. Validate `quantity` (numeric, min 0.01) and `notes`.
+2. Eager-load `$product->load('ingredients.item.unit')`.
+3. Pre-check every ingredient: `current_stock >= ingredient.quantity × qty`; collect failures.
+4. If any failure → `back()->withErrors(['checkout' => '...'])`.
+5. Compute `$effectivePrice` (selling_price > 0 ? manual : computed_cost).
+6. DB transaction: `decrement current_stock` for each ingredient + `Sale::create(...)` with `unit_price` and `total_price`.
+

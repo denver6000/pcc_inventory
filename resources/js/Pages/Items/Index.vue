@@ -18,6 +18,7 @@ const form = useForm({
     name: '',
     image: null,
     unit_id: '',
+    cost_per_unit: 0,
     default_stock: '',
     current_stock: '',
 });
@@ -32,6 +33,7 @@ function openEdit(item) {
     mode.value = item.id;
     form.name = item.name;
     form.unit_id = item.unit_id ?? '';
+    form.cost_per_unit = item.cost_per_unit ?? 0;
     form.default_stock = item.default_stock;
     form.current_stock = item.current_stock;
     form.image = null;
@@ -129,6 +131,13 @@ const btnSecondary =
                     </p>
                 </div>
 
+                <!-- Cost per unit -->
+                <div class="w-28">
+                    <label class="block text-xs text-gray-400 mb-1">Cost / unit</label>
+                    <input type="number" v-model="form.cost_per_unit" min="0" step="0.01" :class="inputClass" placeholder="0.00" />
+                    <p v-if="form.errors.cost_per_unit" class="text-xs text-red-500 mt-0.5">{{ form.errors.cost_per_unit }}</p>
+                </div>
+
                 <!-- Default Stock -->
                 <div class="w-28">
                     <label class="block text-xs text-gray-400 mb-1">Default Stock <span class="text-red-400">*</span></label>
@@ -160,6 +169,7 @@ const btnSecondary =
                         <th class="w-12 py-2 px-3"></th>
                         <th class="py-2 px-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Name</th>
                         <th class="py-2 px-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Unit</th>
+                        <th class="py-2 px-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wide">Cost/unit</th>
                         <th class="py-2 px-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wide">Default</th>
                         <th class="py-2 px-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wide">Stock</th>
                         <th class="w-24 py-2 px-3"></th>
@@ -189,6 +199,10 @@ const btnSecondary =
                             <span v-else class="text-gray-200">—</span>
                         </td>
 
+                        <td class="py-2 px-3 text-sm text-right tabular-nums text-gray-400">
+                            <span v-if="item.cost_per_unit > 0">{{ item.cost_per_unit }}</span>
+                            <span v-else class="text-gray-200">—</span>
+                        </td>
                         <td class="py-2 px-3 text-sm text-right tabular-nums">{{ item.default_stock }}</td>
                         <td class="py-2 px-3 text-sm text-right tabular-nums">{{ item.current_stock }}</td>
 
