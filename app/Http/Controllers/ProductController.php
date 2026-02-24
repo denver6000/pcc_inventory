@@ -24,12 +24,17 @@ class ProductController extends Controller
             'name'                   => 'required|string|max:255',
             'image'                  => 'nullable|image|max:4096',
             'selling_price'          => 'nullable|numeric|min:0',
+            'markup_percentage'      => 'nullable|numeric|min:0',
             'ingredients'            => 'array',
             'ingredients.*.item_id'  => 'required|exists:items,id',
             'ingredients.*.quantity' => 'required|numeric|min:0.0001',
         ]);
 
-        $data = ['name' => $request->name, 'selling_price' => $request->selling_price ?? 0];
+        $data = [
+            'name'              => $request->name,
+            'selling_price'     => $request->selling_price ?? 0,
+            'markup_percentage' => $request->markup_percentage ?? 0,
+        ];
         if ($request->hasFile('image')) {
             $data['image_path'] = $request->file('image')->store('products', 'public');
         }
@@ -52,12 +57,17 @@ class ProductController extends Controller
             'name'                   => 'required|string|max:255',
             'image'                  => 'nullable|image|max:4096',
             'selling_price'          => 'nullable|numeric|min:0',
+            'markup_percentage'      => 'nullable|numeric|min:0',
             'ingredients'            => 'array',
             'ingredients.*.item_id'  => 'required|exists:items,id',
             'ingredients.*.quantity' => 'required|numeric|min:0.0001',
         ]);
 
-        $data = ['name' => $request->name, 'selling_price' => $request->selling_price ?? 0];
+        $data = [
+            'name'              => $request->name,
+            'selling_price'     => $request->selling_price ?? 0,
+            'markup_percentage' => $request->markup_percentage ?? 0,
+        ];
         if ($request->hasFile('image')) {
             if ($product->image_path) {
                 Storage::disk('public')->delete($product->image_path);

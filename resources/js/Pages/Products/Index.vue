@@ -16,11 +16,14 @@ const imagePreview = ref(null);
 
 // ── forms ─────────────────────────────────────────────────────────────────
 const form = useForm({
-    name:          '',
-    image:         null,
-    selling_price: '',
-    ingredients:   [],   // [{ item_id, quantity }]
+    name:              '',
+    image:             null,
+    selling_price:     '',
+    markup_percentage: 0,
+    ingredients:       [],   // [{ item_id, quantity }]
 });
+
+const pricingMode = ref('auto'); // 'auto' | 'markup' | 'manual'
 
 // Live recipe cost: sum of (ingredient qty × item cost_per_unit)
 const liveComputedCost = computed(() =>
@@ -29,6 +32,14 @@ const liveComputedCost = computed(() =>
         return sum + (parseFloat(ing.quantity) || 0) * (parseFloat(item?.cost_per_unit) || 0);
     }, 0).toFixed(2),
 );
+
+// Effective price preview while building/editing the form
+const formEffectivePrice = computed(() => {
+    const cost = parseFloat(liveComputedCost.value) || 0;
+    if (pricingMode.value === 'manual') return parseFloat(form.selling_price) || 0;
+    if (pricingMode.value === 'markup') return cost * (1 + (parseFloat(form.markup_percentage) || 0) / 100);
+    return cost;
+});
 
 const sellForm = useForm({
     quantity: 1,
@@ -41,26 +52,42 @@ function openAdd() {
     mode.value = 'add';
     form.reset();
     form.ingredients = [];
+    form.markup_percentage = 0;
+    pricingMode.value = 'auto';
     imagePreview.value = null;
 }
 
 function openEdit(product) {
     sellMode.value = null;
     mode.value = product.id;
-    form.name          = product.name;
-    form.selling_price = product.selling_price > 0 ? product.selling_price : '';
-    form.image         = null;
+    form.name  = product.name;
+    form.image = null;
     form.ingredients = product.ingredients.map(i => ({
         item_id:  i.item_id,
         quantity: i.quantity,
     }));
     imagePreview.value = product.image_path ? `/storage/${product.image_path}` : null;
+
+    if (parseFloat(product.selling_price) > 0) {
+        pricingMode.value      = 'manual';
+        form.selling_price     = product.selling_price;
+        form.markup_percentage = 0;
+    } else if (parseFloat(product.markup_percentage) > 0) {
+        pricingMode.value      = 'markup';
+        form.selling_price     = '';
+        form.markup_percentage = product.markup_percentage;
+    } else {
+        pricingMode.value      = 'auto';
+        form.selling_price     = '';
+        form.markup_percentage = 0;
+    }
 }
 
 function closeForm() {
     mode.value = null;
     form.reset();
     form.ingredients = [];
+    pricingMode.value = 'auto';
     imagePreview.value = null;
 }
 
@@ -81,6 +108,14 @@ function removeIngredient(idx) {
 }
 
 function submitProduct() {
+    if (pricingMode.value === 'auto') {
+        form.selling_price     = 0;
+        form.markup_percentage = 0;
+    } else if (pricingMode.value === 'markup') {
+        form.selling_price = 0;
+    } else {
+        form.markup_percentage = 0;
+    }
     if (mode.value === 'add') {
         form.post('/products', { onSuccess: closeForm });
     } else {
@@ -139,6 +174,10 @@ const inputCls = 'w-full border border-gray-200 focus:border-gray-500 focus:outl
 const btnBlack = 'bg-black text-white text-xs px-4 py-1.5 hover:bg-gray-800 disabled:opacity-40 transition-colors';
 const btnGreen = 'bg-emerald-600 text-white text-xs px-4 py-1.5 hover:bg-emerald-700 disabled:opacity-40 transition-colors';
 const btnGhost = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hover:border-gray-400 transition-colors';
+const modeBtnCls = (m) => [
+    'text-xs px-3 py-1.5 transition-colors',
+    pricingMode.value === m ? 'bg-black text-white' : 'text-gray-500 hover:text-black',
+].join(' ');
 </script>
 
 <template>
@@ -182,34 +221,62 @@ const btnGhost = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hover
             </div>
 
             <!-- pricing -->
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div class="w-36">
-                    <label class="block text-xs text-gray-400 mb-1">Selling Price</label>
-                    <input
-                        type="number"
-                        v-model="form.selling_price"
-                        min="0"
-                        step="0.01"
-                        :class="inputCls"
-                        placeholder="0.00"
-                    />
-                    <p v-if="form.errors.selling_price" class="text-xs text-red-500 mt-0.5">{{ form.errors.selling_price }}</p>
+            <div class="mb-4">
+                <label class="block text-xs text-gray-400 mb-1">Pricing</label>
+                <div class="inline-flex border border-gray-200 divide-x divide-gray-200 w-fit mb-3">
+                    <button type="button" @click="pricingMode = 'auto'" :class="modeBtnCls('auto')">Auto</button>
+                    <button type="button" @click="pricingMode = 'markup'" :class="modeBtnCls('markup')">Markup %</button>
+                    <button type="button" @click="pricingMode = 'manual'" :class="modeBtnCls('manual')">Manual</button>
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Recipe Cost</label>
-                    <div class="px-2.5 py-1.5 border border-gray-100 bg-gray-50 text-sm tabular-nums w-36">
-                        {{ liveComputedCost }}
+                <div class="flex flex-wrap items-end gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Recipe Cost</label>
+                        <div class="px-2.5 py-1.5 border border-gray-100 bg-gray-50 text-sm tabular-nums w-36">
+                            {{ liveComputedCost }}
+                        </div>
+                        <p class="text-xs text-gray-300 mt-0.5">auto-calculated</p>
                     </div>
-                    <p class="text-xs text-gray-300 mt-0.5">auto-calculated</p>
-                </div>
-                <div class="pb-px">
-                    <button
-                        type="button"
-                        @click="form.selling_price = liveComputedCost"
-                        class="text-xs text-gray-400 hover:text-black border border-gray-200 px-3 py-1.5 hover:border-gray-400 transition-colors"
-                    >
-                        ← Use recipe cost
-                    </button>
+
+                    <div v-if="pricingMode === 'markup'" class="w-28">
+                        <label class="block text-xs text-gray-400 mb-1">Markup %</label>
+                        <div class="relative">
+                            <input
+                                type="number"
+                                v-model="form.markup_percentage"
+                                min="0"
+                                step="0.1"
+                                :class="inputCls"
+                                placeholder="0"
+                            />
+                            <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                        </div>
+                        <p v-if="form.errors.markup_percentage" class="text-xs text-red-500 mt-0.5">{{ form.errors.markup_percentage }}</p>
+                    </div>
+
+                    <div v-if="pricingMode === 'manual'" class="w-36">
+                        <label class="block text-xs text-gray-400 mb-1">Selling Price</label>
+                        <input
+                            type="number"
+                            v-model="form.selling_price"
+                            min="0"
+                            step="0.01"
+                            :class="inputCls"
+                            placeholder="0.00"
+                        />
+                        <p v-if="form.errors.selling_price" class="text-xs text-red-500 mt-0.5">{{ form.errors.selling_price }}</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Effective Price</label>
+                        <div class="px-2.5 py-1.5 border border-gray-100 bg-gray-50 text-sm tabular-nums w-36 font-medium">
+                            {{ formEffectivePrice.toFixed(2) }}
+                        </div>
+                        <p class="text-xs text-gray-300 mt-0.5">
+                            <span v-if="pricingMode === 'auto'">= recipe cost</span>
+                            <span v-else-if="pricingMode === 'markup'">cost × (1 + {{ form.markup_percentage || 0 }}%)</span>
+                            <span v-else>fixed price</span>
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -422,6 +489,10 @@ const btnGhost = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hover
 
                         <td class="py-2 px-3 text-sm text-right tabular-nums font-medium">
                             <span v-if="product.selling_price > 0">{{ parseFloat(product.selling_price).toFixed(2) }}</span>
+                            <span v-else-if="product.markup_percentage > 0">
+                                {{ (parseFloat(product.computed_cost) * (1 + parseFloat(product.markup_percentage) / 100)).toFixed(2) }}
+                                <span class="text-xs text-gray-400 font-normal ml-0.5">+{{ product.markup_percentage }}%</span>
+                            </span>
                             <span v-else class="text-gray-300 text-xs">auto</span>
                         </td>
 

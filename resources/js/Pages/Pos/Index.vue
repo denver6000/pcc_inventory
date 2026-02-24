@@ -20,12 +20,24 @@ const product = computed(() =>
 
 const effectivePrice = computed(() => {
     if (!product.value) return 0;
-    const sp = parseFloat(product.value.selling_price);
-    return sp > 0 ? sp : parseFloat(product.value.computed_cost ?? 0);
+    const sp     = parseFloat(product.value.selling_price);
+    if (sp > 0) return sp;
+    const markup = parseFloat(product.value.markup_percentage ?? 0);
+    const cost   = parseFloat(product.value.computed_cost ?? 0);
+    if (markup > 0) return cost * (1 + markup / 100);
+    return cost;
 });
 
 const isPriceAuto = computed(() =>
-    product.value && !(parseFloat(product.value.selling_price) > 0),
+    product.value
+    && !(parseFloat(product.value.selling_price) > 0)
+    && !(parseFloat(product.value.markup_percentage ?? 0) > 0),
+);
+
+const isPriceMarkup = computed(() =>
+    product.value
+    && !(parseFloat(product.value.selling_price) > 0)
+    && parseFloat(product.value.markup_percentage ?? 0) > 0,
 );
 
 const total = computed(() => {
@@ -105,6 +117,7 @@ const btnGhost  = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hove
                             Unit price:
                             <span class="tabular-nums text-gray-700 font-medium">${{ currency(effectivePrice) }}</span>
                             <span v-if="isPriceAuto" class="text-gray-300 ml-1">(recipe cost)</span>
+                            <span v-else-if="isPriceMarkup" class="text-gray-300 ml-1">(+{{ product.markup_percentage }}% markup)</span>
                         </p>
                     </div>
                 </div>
@@ -201,8 +214,17 @@ const btnGhost  = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hove
                 <div class="p-2.5">
                     <p class="text-xs font-medium truncate leading-tight">{{ p.name }}</p>
                     <p class="text-xs tabular-nums mt-0.5 text-gray-600">
-                        ${{ currency(parseFloat(p.selling_price) > 0 ? p.selling_price : p.computed_cost) }}
-                        <span v-if="!(parseFloat(p.selling_price) > 0)" class="text-gray-300 text-xs"> auto</span>
+                        <template v-if="parseFloat(p.selling_price) > 0">
+                            ${{ currency(p.selling_price) }}
+                        </template>
+                        <template v-else-if="parseFloat(p.markup_percentage ?? 0) > 0">
+                            ${{ currency(parseFloat(p.computed_cost) * (1 + parseFloat(p.markup_percentage) / 100)) }}
+                            <span class="text-gray-300 text-xs"> +{{ p.markup_percentage }}%</span>
+                        </template>
+                        <template v-else>
+                            ${{ currency(p.computed_cost) }}
+                            <span class="text-gray-300 text-xs"> auto</span>
+                        </template>
                     </p>
                 </div>
             </button>
