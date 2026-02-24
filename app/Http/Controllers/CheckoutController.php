@@ -37,7 +37,9 @@ class CheckoutController extends Controller
 
         $effectivePrice = $product->selling_price > 0
             ? (float) $product->selling_price
-            : $product->computed_cost;
+            : ($product->markup_percentage > 0
+                ? round($product->computed_cost * (1 + $product->markup_percentage / 100), 2)
+                : $product->computed_cost);
 
         DB::transaction(function () use ($product, $qty, $request, $effectivePrice) {
             foreach ($product->ingredients as $ing) {

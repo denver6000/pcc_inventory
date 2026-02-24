@@ -6,12 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
-    protected $fillable = ['name', 'image_path', 'selling_price'];
+    protected $fillable = ['name', 'image_path', 'selling_price', 'markup_percentage'];
 
     protected function casts(): array
     {
         return [
-            'selling_price' => 'float',
+            'selling_price'     => 'float',
+            'markup_percentage' => 'float',
         ];
     }
 
