@@ -6,6 +6,7 @@ use App\Models\Item;
 use App\Models\RestockBatch;
 use App\Models\RestockBatchItem;
 use Illuminate\Database\Seeder;
+use Carbon\Carbon;
 
 class RestockBatchSeeder extends Seeder
 {
@@ -40,24 +41,39 @@ class RestockBatchSeeder extends Seeder
             ],
         ];
 
-        foreach ($batches as $batchData) {
+        // Precompute a 7-day span starting Feb 24, 2026 (rolls into March for overflow)
+        $dateSpan = collect(range(0, 6))->map(fn ($i) => Carbon::create(2026, 2, 24)->addDays($i));
+        $lineCursor = 0;
+
+        foreach ($batches as $idx => $batchData) {
             $totalCost = collect($batchData['items'])
                 ->sum(fn ($line) => $line['qty'] * $line['cpu']);
 
-            $batch = RestockBatch::create([
+            $batchDate = $dateSpan[$idx % $dateSpan->count()];
+
+            $batch = new RestockBatch([
                 'notes'      => $batchData['notes'],
                 'total_cost' => $totalCost,
             ]);
+            $batch->created_at = $batchDate;
+            $batch->updated_at = $batchDate;
+            $batch->save();
 
             foreach ($batchData['items'] as $line) {
+                $lineDate = $dateSpan[$lineCursor % $dateSpan->count()];
+                $lineCursor++;
+
                 $itemModel = $item($line['item']);
-                RestockBatchItem::create([
+                $batchItem = new RestockBatchItem([
                     'restock_batch_id' => $batch->id,
                     'item_id'          => $itemModel->id,
                     'quantity_added'   => $line['qty'],
                     'cost_per_unit'    => $line['cpu'],
                     'subtotal'         => $line['qty'] * $line['cpu'],
                 ]);
+                $batchItem->created_at = $lineDate;
+                $batchItem->updated_at = $lineDate;
+                $batchItem->save();
             }
         }
     }
