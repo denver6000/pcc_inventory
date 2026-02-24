@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class RestockBatchItem extends Model
 {
-    protected $fillable = ['restock_batch_id', 'item_id', 'quantity_added', 'cost_per_unit', 'subtotal'];
+    protected $fillable = ['restock_batch_id', 'item_id', 'quantity_added', 'cost_per_unit', 'subtotal', 'journal_line_id'];
 
     protected function casts(): array
     {

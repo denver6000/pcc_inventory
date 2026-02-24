@@ -21,6 +21,7 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'currentDate' => $request->query('date', now()->toDateString()),
         ];
     }
 }

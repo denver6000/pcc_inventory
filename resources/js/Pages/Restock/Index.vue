@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { ui } from '@/theme';
+
+const page = usePage();
 
 const props = defineProps({
     batches: Array,
@@ -19,6 +21,7 @@ const cols = ref({ date: true, notes: true, count: true, total: true });
 
 // ── form ──────────────────────────────────────────────────────────────────
 const form = useForm({
+    journal_date: '',
     notes: '',
     items: [],  // [{ item_id, quantity_added }]
 });
@@ -71,7 +74,8 @@ function removeLine(idx) {
 }
 
 function submitBatch() {
-    form.post('/restock', { onSuccess: closeForm });
+    form.journal_date = page.props.currentDate;
+    form.post('/restock', { preserveScroll: true, onSuccess: closeForm });
 }
 
 function toggleExpand(id) {

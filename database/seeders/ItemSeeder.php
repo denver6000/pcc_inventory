@@ -42,7 +42,7 @@ class ItemSeeder extends Seeder
                 'unit_id'       => $data['unit_id'],
                 'cost_per_unit' => $data['cost_per_unit'],
                 'default_stock' => $data['default_stock'],
-                'current_stock' => $data['default_stock'], // seed current = default
+                'current_stock' => 0, // stock comes exclusively from RestockBatchItem rows
             ]);
         }
     }

@@ -7,13 +7,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use App\Models\Item;
+use App\Services\StockLedger;
 
 class ProductController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $date = $request->query('date', now()->toDateString());
+
+        $products = Product::with('ingredients.item.unit')->latest()->get()->each->append('computed_cost');
+        StockLedger::hydrateProducts($products, $date);
+
         return Inertia::render('Products/Index', [
-            'products' => Product::with('ingredients.item.unit')->latest()->get()->each->append('computed_cost'),
+            'products' => $products,
             'items'    => Item::with('unit')->orderBy('name')->get(),
         ]);
     }

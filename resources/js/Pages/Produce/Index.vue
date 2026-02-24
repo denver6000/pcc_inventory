@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { ui } from '@/theme';
+
+const page = usePage();
 
 const props = defineProps({ products: Array });
 
@@ -11,6 +13,7 @@ const form = useForm({
     product_id: '',
     quantity: 1,
     notes: '',
+    journal_date: '',
     batch_orders: {},
 });
 
@@ -53,6 +56,7 @@ function select(p) {
 
 function submit() {
     form.product_id = selectedId.value;
+    form.journal_date = page.props.currentDate;
     form.batch_orders = normalisedOrders();
     form.post('/produce', {
         preserveScroll: true,

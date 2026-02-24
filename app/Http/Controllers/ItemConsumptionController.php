@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Item;
 use App\Models\RestockBatchItem;
+use App\Models\DailyJournal;
+use App\Models\DailyJournalLine;
+use App\Services\StockLedger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -13,52 +16,70 @@ class ItemConsumptionController extends Controller
     public function store(Request $request, Item $item)
     {
         $validated = $request->validate([
+            'journal_date' => 'nullable|date',
             'quantity'     => 'required|numeric|min:0.0001',
             'batch_order'  => 'required|array|min:1',
             'batch_order.*'=> 'integer|distinct',
         ]);
 
-        $qty = (float) $validated['quantity'];
+        $qty   = (float) $validated['quantity'];
         $order = array_values($validated['batch_order']);
+        $journalDate = $validated['journal_date'] ?? now()->toDateString();
 
-        DB::transaction(function () use ($item, $qty, $order) {
-            // Lock the item row first
-            $lockedItem = Item::where('id', $item->id)->lockForUpdate()->first();
+        DB::transaction(function () use ($item, $qty, $order, $journalDate) {
+            $journal = DailyJournal::create([
+                'journal_date' => $journalDate,
+                'kind'         => 'consume',
+                'notes'        => null,
+            ]);
 
-            // Lock selected batch lines
+            // Fetch the requested batch lines (metadata only — we don't mutate them)
             $lines = RestockBatchItem::where('item_id', $item->id)
                 ->whereIn('id', $order)
-                ->lockForUpdate()
                 ->get();
 
-            // Ensure all requested batch ids exist for this item
             $foundIds = $lines->pluck('id')->all();
-            $missing = array_diff($order, $foundIds);
+            $missing  = array_diff($order, $foundIds);
             if (!empty($missing)) {
                 throw ValidationException::withMessages(['batch_order' => 'One or more selected batches were not found.']);
             }
 
-            // Sort lines by the user-specified order
-            $lines = $lines->sortBy(function ($line) use ($order) {
-                return array_search($line->id, $order);
-            });
+            // Sort by user-specified order
+            $lines = $lines->sortBy(fn ($l) => array_search($l->id, $order));
 
-            $available = $lines->sum('quantity_added');
+            // Compute remaining balances from the ledger
+            $balances = StockLedger::batchBalancesForItemAsOf($item->id, $journalDate);
+
+            foreach ($lines as $line) {
+                $line->setAttribute('ledger_balance', $balances[$line->id] ?? 0.0);
+            }
+
+            $available = $lines->sum(fn ($l) => $l->getAttribute('ledger_balance'));
             if ($available + 1e-9 < $qty) {
                 throw ValidationException::withMessages([
-                    'quantity' => 'Insufficient stock in selected batches (available ' . $available . ').',
+                    'quantity' => 'Insufficient stock in selected batches (available ' . round($available, 4) . ').',
                 ]);
             }
 
+            // Append-only: write journal lines, never decrement batch rows
             $remaining = $qty;
             foreach ($lines as $line) {
                 if ($remaining <= 0) break;
-                $take = min($remaining, (float) $line->quantity_added);
-                $line->decrement('quantity_added', $take);
+                $balance = $line->getAttribute('ledger_balance');
+                if ($balance <= 0) continue;
+                $take = min($remaining, $balance);
+
+                DailyJournalLine::create([
+                    'daily_journal_id'      => $journal->id,
+                    'item_id'               => $item->id,
+                    'restock_batch_item_id' => $line->id,
+                    'direction'             => 'out',
+                    'quantity'              => $take,
+                    'meta'                  => ['reason' => 'manual_consume'],
+                ]);
+
                 $remaining -= $take;
             }
-
-            $lockedItem->decrement('current_stock', $qty);
         });
 
         return back();

@@ -1,8 +1,10 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { ui } from '@/theme';
+
+const page = usePage();
 
 const props = defineProps({
     items: Array,
@@ -20,6 +22,7 @@ const consumeOrder = ref([]); // [{id, order}]
 const consumeForm = useForm({
     quantity: '',
     batch_order: [],
+    journal_date: '',
 });
 
 const totalBatchQty = computed(() =>
@@ -42,8 +45,8 @@ const form = useForm({
     unit_id: '',
     cost_per_unit: 0,
     default_stock: '',
+    journal_date: '',
 });
-    // current_stock has been removed
 
 function openAdd() {
     mode.value = 'add';
@@ -75,10 +78,11 @@ function handleImage(e) {
 }
 
 function submit() {
+    form.journal_date = page.props.currentDate;
     if (mode.value === 'add') {
-        form.post('/items', { onSuccess: closeForm });
+        form.post('/items', { preserveScroll: true, onSuccess: closeForm });
     } else {
-        form.put(`/items/${mode.value}`, { onSuccess: closeForm });
+        form.put(`/items/${mode.value}`, { preserveScroll: true, onSuccess: closeForm });
     }
 }
 
@@ -139,6 +143,7 @@ function setOrder(id, value) {
 
 function submitConsume() {
     consumeForm.batch_order = sortedOrders();
+    consumeForm.journal_date = page.props.currentDate;
     if (!consumeForm.batch_order.length) {
         consumeForm.setError('batch_order', 'Select at least one batch to consume from.');
         return;
