@@ -1,7 +1,7 @@
 # Copilot instructions
 
 ## Project overview
-PCC Inventory & POS system — a Laravel 12 + Inertia.js (Vue 3) SPA for managing stock items, defining products with recipes, and processing sales through a point-of-sale interface.
+PCC Inventory & POS system — a Laravel 12 + Inertia.js (Vue 3) SPA for managing stock items, defining products with recipes, processing sales, and restocking inventory.
 
 ## Stack & architecture
 - **Laravel 12 + Inertia.js (Vue 3) SPA**: routes always return `Inertia::render('PageName', $props)`, never `view()`. Single HTML shell: [resources/views/app.blade.php](resources/views/app.blade.php).
@@ -29,13 +29,14 @@ PCC Inventory & POS system — a Laravel 12 + Inertia.js (Vue 3) SPA for managin
   ```php
   Product::with('ingredients.item.unit')->get()->each->append('computed_cost')
   ```
+- Restock batches use a human-readable code `RST-YYYYMMDD-NNN` (daily sequence), generated with `lockForUpdate()` to prevent duplicates. `cost_per_unit` and `subtotal` are **snapshots** captured at restock time from `item->cost_per_unit`.
 
 ### Frontend
 - Use `<script setup>` + `defineProps()` for all page components. Never fetch data inside components — all data arrives as Inertia props.
 - Use `useForm()` from `@inertiajs/vue3` for all form submissions; use `router` for programmatic navigation.
 - Use `<Link>` (from `@inertiajs/vue3`) instead of `<a>` for client-side navigation.
-- Active nav link detection in [AppLayout.vue](resources/js/Layouts/AppLayout.vue) uses `usePage().url` string comparison.
-- Multi-panel pages (e.g., `Products/Index.vue`) track panel state with separate `mode` (CRUD) and `sellMode` (sell) refs — not a router.
+- Active nav link detection in [AppLayout.vue](resources/js/Layouts/AppLayout.vue): exact `url === '/'` for Items, `url.startsWith('/...')` for all other routes.
+- Single-page CRUD panels use a `mode` ref (`null | 'add' | <id>`) — not a router. See [Restock/Index.vue](resources/js/Pages/Restock/Index.vue) and [Products/Index.vue](resources/js/Pages/Products/Index.vue).
 
 ## Domain models
 
@@ -54,10 +55,15 @@ PCC Inventory & POS system — a Laravel 12 + Inertia.js (Vue 3) SPA for managin
 - `ProductIngredient`: `product_id`, `item_id`, `quantity` — one recipe line.
 - `Sale`: `product_id`, `quantity_sold`, `unit_price` (price at time of sale), `total_price`, `notes` — all numeric cast to `float`.
 
+### RestockBatch / RestockBatchItem
+- `RestockBatch`: `batch_code` (e.g. `RST-20260224-001`), `notes`, `total_cost`. `hasMany(RestockBatchItem::class)`.
+- `RestockBatchItem`: `restock_batch_id`, `item_id`, `quantity_added`, `cost_per_unit` (snapshot), `subtotal` — all numeric cast to `float`.
+- ⚠️ `batch_code` column is in `$fillable` and used by the controller but **missing from the `restock_batches` migration** — add it if the column is absent.
+
 ## Pricing logic (must stay in sync between PHP and JS)
 Three modes — priority: manual > markup > auto.
 ```php
-// CheckoutController & Product model
+// CheckoutController
 $effectivePrice = $product->selling_price > 0
     ? (float) $product->selling_price
     : ($product->markup_percentage > 0
@@ -65,7 +71,7 @@ $effectivePrice = $product->selling_price > 0
         : $product->computed_cost);
 ```
 ```js
-// Pos/Index.vue & Products/Index.vue
+// Pos/Index.vue
 const sp = parseFloat(product.selling_price);
 if (sp > 0) return sp;
 const markup = parseFloat(product.markup_percentage ?? 0);
@@ -77,17 +83,24 @@ return markup > 0 ? cost * (1 + markup / 100) : cost;
 ## Pages & routes
 | Route | Controller | Vue Page |
 |---|---|---|
-| `GET /pos` | `PosController@index` | `Pos/Index` |
 | `GET /` | `ItemController@index` | `Items/Index` |
 | `GET /products` | `ProductController@index` | `Products/Index` |
+| `GET /restock` | `RestockController@index` | `Restock/Index` |
 | `GET /units` | `UnitController@index` | `Units/Index` |
 | `POST /products/{product}/checkout` | `CheckoutController@store` | — |
 
-Nav order in [AppLayout.vue](resources/js/Layouts/AppLayout.vue): **POS → Items → Products → Units**.
+Nav order in [AppLayout.vue](resources/js/Layouts/AppLayout.vue): **Items → Products → Restock → Units**.  
+`PosController` and `CheckoutController` exist but `/pos` and `POST /products/{product}/checkout` are **not registered in [routes/web.php](routes/web.php)** — add them if POS functionality is needed.
 
 ## Checkout flow (`CheckoutController::store`)
 1. Validate `quantity` (numeric, min 0.01) and `notes`.
 2. Eager-load `$product->load('ingredients.item.unit')`.
 3. Pre-flight stock check (before transaction): collect all failures, return `back()->withErrors(['checkout' => '...'])` if any.
 4. Compute `$effectivePrice`; wrap stock decrements + `Sale::create()` in `DB::transaction()`.
+
+## Restock flow (`RestockController::store`)
+1. Validate `items` array (each needs `item_id`, `quantity_added` ≥ 0.0001).
+2. Inside `DB::transaction()`: snapshot each item's current `cost_per_unit`, compute `subtotal`, accumulate `total_cost`.
+3. Generate `batch_code` with `lockForUpdate()` on a daily count query before creating the batch.
+4. Use `$batch->items()->create(...)` for each line; `Item::increment('current_stock', $qty)` updates stock.
 
