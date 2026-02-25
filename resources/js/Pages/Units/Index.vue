@@ -1,6 +1,5 @@
 <script setup>
 import { Head, useForm, router } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
 import { ui } from '@/theme';
 
 defineProps({ units: Array });
@@ -22,8 +21,7 @@ const btnPrimary = ui.button.primary;
 </script>
 
 <template>
-    <AppLayout>
-        <Head title="Units" />
+    <Head title="Units" />
 
         <!-- Page header -->
         <div class="flex items-center justify-between mb-5">
@@ -105,5 +103,4 @@ const btnPrimary = ui.button.primary;
                 </tbody>
             </table>
         </div>
-    </AppLayout>
 </template>

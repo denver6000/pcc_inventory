@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
 import { ui } from '@/theme';
 
 const props = defineProps({
@@ -135,8 +134,7 @@ const modeBtnCls = (m) => [
 </script>
 
 <template>
-    <AppLayout>
-        <Head title="Products" />
+    <Head title="Products" />
 
         <!-- ── page header ──────────────────────────────────────── -->
         <div class="flex items-center justify-between mb-5">
@@ -399,5 +397,4 @@ const modeBtnCls = (m) => [
                 </tbody>
             </table>
         </div>
-    </AppLayout>
 </template>

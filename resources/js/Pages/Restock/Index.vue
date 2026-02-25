@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
 import { ui } from '@/theme';
 
 const page = usePage();
@@ -97,8 +96,7 @@ const fmt = (d) =>
 </script>
 
 <template>
-    <AppLayout>
-        <Head title="Restock" />
+    <Head title="Restock" />
 
         <!-- ── header ──────────────────────────────────────────── -->
         <div class="flex items-center justify-between mb-5">
@@ -358,5 +356,4 @@ const fmt = (d) =>
                 </tbody>
             </table>
         </div>
-    </AppLayout>
 </template>

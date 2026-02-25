@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
 import { ui } from '@/theme';
 
 const page = usePage();
@@ -121,8 +120,7 @@ function normalisedOrders() {
 </script>
 
 <template>
-    <AppLayout>
-        <Head title="Produce" />
+    <Head title="Produce" />
 
         <div class="flex items-center justify-between mb-5">
             <div>
@@ -333,5 +331,4 @@ function normalisedOrders() {
                 </button>
             </div>
         </div>
-    </AppLayout>
 </template>

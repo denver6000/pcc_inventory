@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
 import { ui } from '@/theme';
 
 const props = defineProps({
@@ -92,8 +91,7 @@ const btnGhost  = ui.button.secondary;
 </script>
 
 <template>
-    <AppLayout>
-        <Head title="POS" />
+    <Head title="POS" />
 
         <div class="flex items-center justify-between mb-5">
             <div>
@@ -240,5 +238,4 @@ const btnGhost  = ui.button.secondary;
             <a href="/products" class="underline hover:text-slate-700">Create products</a>
             to use the POS.
         </div>
-    </AppLayout>
 </template>

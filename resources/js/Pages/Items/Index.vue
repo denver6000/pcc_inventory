@@ -1,7 +1,6 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
 import { ui } from '@/theme';
 
 const page = usePage();
@@ -164,8 +163,7 @@ const btnSecondary = ui.button.secondary;
 </script>
 
 <template>
-    <AppLayout>
-        <Head title="Items" />
+    <Head title="Items" />
 
         <!-- ── Page header ───────────────────────────── -->
         <div class="flex items-center justify-between mb-5">
@@ -494,5 +492,4 @@ const btnSecondary = ui.button.secondary;
                 </div>
             </div>
         </div>
-    </AppLayout>
 </template>
