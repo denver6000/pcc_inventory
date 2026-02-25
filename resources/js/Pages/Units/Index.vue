@@ -1,6 +1,6 @@
 <script setup>
 import { Head, useForm, router } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
+import { ui } from '@/theme';
 
 defineProps({ units: Array });
 
@@ -16,27 +16,27 @@ function remove(unit) {
     }
 }
 
-const inputClass =
-    'w-full border border-gray-200 focus:border-gray-500 focus:outline-none px-2.5 py-1.5 text-sm bg-white';
-const btnPrimary =
-    'bg-black text-white text-xs px-4 py-1.5 hover:bg-gray-800 disabled:opacity-40 transition-colors';
+const inputClass = ui.input;
+const btnPrimary = ui.button.primary;
 </script>
 
 <template>
-    <AppLayout>
-        <Head title="Units" />
+    <Head title="Units" />
 
         <!-- Page header -->
         <div class="flex items-center justify-between mb-5">
-            <h1 class="text-sm font-semibold">Units</h1>
+            <div>
+                <h1 :class="ui.heading">Units</h1>
+                <p class="text-xs text-slate-500">Create abbreviations used across items.</p>
+            </div>
         </div>
 
         <!-- Add form -->
-        <div class="bg-white border border-gray-200 p-4 mb-5">
-            <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide font-medium">New Unit</p>
+        <div :class="[ui.card, 'p-5 mb-5']">
+            <p :class="[ui.subheading, 'mb-3']">New Unit</p>
             <div class="flex flex-wrap items-end gap-3">
                 <div class="w-48">
-                    <label class="block text-xs text-gray-400 mb-1">Name <span class="text-red-400">*</span></label>
+                    <label :class="ui.fieldLabel">Name <span class="text-red-400">*</span></label>
                     <input
                         type="text"
                         v-model="form.name"
@@ -47,7 +47,7 @@ const btnPrimary =
                     <p v-if="form.errors.name" class="text-xs text-red-500 mt-0.5">{{ form.errors.name }}</p>
                 </div>
                 <div class="w-28">
-                    <label class="block text-xs text-gray-400 mb-1">Abbreviation <span class="text-red-400">*</span></label>
+                    <label :class="ui.fieldLabel">Abbreviation <span class="text-red-400">*</span></label>
                     <input
                         type="text"
                         v-model="form.abbreviation"
@@ -66,29 +66,29 @@ const btnPrimary =
         </div>
 
         <!-- Units table -->
-        <div class="bg-white border border-gray-200">
+        <div :class="ui.table">
             <table class="w-full">
                 <thead>
-                    <tr class="border-b border-gray-200">
-                        <th class="py-2 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Name</th>
-                        <th class="py-2 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Abbreviation</th>
-                        <th class="py-2 px-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wide">Items</th>
-                        <th class="w-20 py-2 px-4"></th>
+                    <tr class="border-b border-slate-200" :class="ui.tableHead">
+                        <th class="py-3 px-4 text-left">Name</th>
+                        <th class="py-3 px-4 text-left">Abbreviation</th>
+                        <th class="py-3 px-4 text-right">Items</th>
+                        <th class="w-20 py-3 px-4"></th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr
                         v-for="unit in units"
                         :key="unit.id"
-                        class="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
+                        class="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors"
                     >
-                        <td class="py-2.5 px-4 text-sm">{{ unit.name }}</td>
-                        <td class="py-2.5 px-4 text-sm text-gray-400">{{ unit.abbreviation }}</td>
-                        <td class="py-2.5 px-4 text-sm text-right tabular-nums text-gray-400">{{ unit.items_count }}</td>
+                        <td class="py-2.5 px-4 text-sm font-medium text-slate-900">{{ unit.name }}</td>
+                        <td class="py-2.5 px-4 text-sm text-slate-500">{{ unit.abbreviation }}</td>
+                        <td class="py-2.5 px-4 text-sm text-right tabular-nums text-slate-600">{{ unit.items_count }}</td>
                         <td class="py-2.5 px-4 text-right">
                             <button
                                 @click="remove(unit)"
-                                class="text-xs text-gray-400 hover:text-red-600 transition-colors"
+                                class="text-xs text-slate-500 hover:text-rose-600 transition-colors"
                                 :disabled="unit.items_count > 0"
                                 :title="unit.items_count > 0 ? 'Unlink items first' : ''"
                                 :class="{ 'opacity-30 cursor-not-allowed': unit.items_count > 0 }"
@@ -96,12 +96,11 @@ const btnPrimary =
                         </td>
                     </tr>
                     <tr v-if="!units.length">
-                        <td colspan="4" class="py-14 text-center text-xs text-gray-300">
+                        <td colspan="4" class="py-14 text-center text-xs text-slate-400">
                             No units yet. Use the form above to add one.
                         </td>
                     </tr>
                 </tbody>
             </table>
         </div>
-    </AppLayout>
 </template>

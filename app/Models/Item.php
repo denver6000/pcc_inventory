@@ -21,4 +21,9 @@ class Item extends Model
     {
         return $this->belongsTo(Unit::class);
     }
+
+    public function restockBatchItems()
+    {
+        return $this->hasMany(RestockBatchItem::class);
+    }
 }

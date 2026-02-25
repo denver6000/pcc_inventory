@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
+import { ui } from '@/theme';
 
 const props = defineProps({
     products: Array,
@@ -85,22 +85,24 @@ function submit() {
 
 const currency = (n) => parseFloat(n ?? 0).toFixed(2);
 
-const inputCls  = 'w-full border border-gray-200 focus:border-gray-500 focus:outline-none px-2.5 py-1.5 text-sm bg-white';
-const btnGreen  = 'bg-emerald-600 text-white text-xs px-4 py-1.5 hover:bg-emerald-700 disabled:opacity-40 transition-colors';
-const btnGhost  = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hover:border-gray-400 transition-colors';
+const inputCls  = ui.input;
+const btnPrimary  = ui.button.primary;
+const btnGhost  = ui.button.secondary;
 </script>
 
 <template>
-    <AppLayout>
-        <Head title="POS" />
+    <Head title="POS" />
 
         <div class="flex items-center justify-between mb-5">
-            <h1 class="text-sm font-semibold">Point of Sale</h1>
-            <p class="text-xs text-gray-400">Click a product card to sell it</p>
+            <div>
+                <h1 :class="ui.heading">Point of Sale</h1>
+                <p class="text-xs text-slate-500">Click a product to stage a sale; stock guards show per-ingredient availability.</p>
+            </div>
+            <p class="text-xs text-slate-500">Live recipe-based pricing</p>
         </div>
 
         <!-- ── sell panel ─────────────────────────────────────── -->
-        <div v-if="selectedId && product" class="bg-white border border-gray-200 p-4 mb-5">
+        <div v-if="selectedId && product" :class="[ui.card, 'p-5 mb-5']">
             <div class="flex flex-wrap items-end gap-4">
 
                 <!-- product info -->
@@ -108,23 +110,23 @@ const btnGhost  = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hove
                     <img
                         v-if="product.image_path"
                         :src="`/storage/${product.image_path}`"
-                        class="h-10 w-10 object-cover flex-shrink-0"
+                        class="h-12 w-12 object-cover flex-shrink-0 rounded-lg border border-slate-200"
                     />
-                    <div v-else class="h-10 w-10 bg-gray-100 flex-shrink-0"></div>
+                    <div v-else class="h-12 w-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-lg flex-shrink-0">◆</div>
                     <div>
-                        <p class="text-sm font-medium">{{ product.name }}</p>
-                        <p class="text-xs text-gray-400">
+                        <p class="text-sm font-semibold text-slate-900">{{ product.name }}</p>
+                        <p class="text-xs text-slate-500">
                             Unit price:
-                            <span class="tabular-nums text-gray-700 font-medium">${{ currency(effectivePrice) }}</span>
-                            <span v-if="isPriceAuto" class="text-gray-300 ml-1">(recipe cost)</span>
-                            <span v-else-if="isPriceMarkup" class="text-gray-300 ml-1">(+{{ product.markup_percentage }}% markup)</span>
+                            <span class="tabular-nums text-slate-900 font-semibold">${{ currency(effectivePrice) }}</span>
+                            <span v-if="isPriceAuto" class="text-slate-400 ml-1">(recipe cost)</span>
+                            <span v-else-if="isPriceMarkup" class="text-slate-400 ml-1">(+{{ product.markup_percentage }}% markup)</span>
                         </p>
                     </div>
                 </div>
 
                 <!-- qty -->
                 <div class="w-24">
-                    <label class="block text-xs text-gray-400 mb-1">Qty <span class="text-red-400">*</span></label>
+                    <label :class="ui.fieldLabel">Qty <span class="text-red-400">*</span></label>
                     <input
                         type="number"
                         v-model="sellForm.quantity"
@@ -137,15 +139,15 @@ const btnGhost  = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hove
 
                 <!-- total -->
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1">Total</label>
-                    <div class="px-2.5 py-1.5 border border-gray-100 bg-gray-50 text-sm font-semibold tabular-nums w-28">
+                    <label :class="ui.fieldLabel">Total</label>
+                    <div class="px-3 py-2 border border-slate-200 bg-slate-50 text-sm font-semibold tabular-nums w-28 rounded-lg">
                         ${{ total }}
                     </div>
                 </div>
 
                 <!-- notes -->
                 <div class="flex-1 min-w-36">
-                    <label class="block text-xs text-gray-400 mb-1">Notes</label>
+                    <label :class="ui.fieldLabel">Notes</label>
                     <input type="text" v-model="sellForm.notes" :class="inputCls" placeholder="Optional" />
                 </div>
 
@@ -154,7 +156,7 @@ const btnGhost  = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hove
                     <button
                         @click="submit"
                         :disabled="sellForm.processing || !canSell"
-                        :class="btnGreen"
+                        :class="btnPrimary"
                         :title="!canSell ? 'Insufficient stock for one or more ingredients' : ''"
                     >
                         Confirm Sale
@@ -164,14 +166,14 @@ const btnGhost  = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hove
             </div>
 
             <!-- ingredient stock pills -->
-            <div v-if="product.ingredients.length" class="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
+            <div v-if="product.ingredients.length" class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
                 <div
                     v-for="ing in product.ingredients"
                     :key="ing.id"
-                    class="flex items-center gap-1 text-xs px-2 py-0.5"
-                    :class="ingredientStatus(ing).ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'"
+                    class="flex items-center gap-1 text-xs px-3 py-1 rounded-full border"
+                    :class="ingredientStatus(ing).ok ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'"
                 >
-                    <span>{{ ingredientStatus(ing).ok ? '✓' : '✗' }}</span>
+                    <span>{{ ingredientStatus(ing).ok ? '✓' : '!' }}</span>
                     {{ ing.item.name }}
                     <span class="opacity-50">
                         {{ ingredientStatus(ing).required }}/{{ ingredientStatus(ing).available }}{{ ingredientStatus(ing).unit }}
@@ -193,47 +195,47 @@ const btnGhost  = 'border border-gray-200 text-gray-500 text-xs px-4 py-1.5 hove
                 v-for="p in products"
                 :key="p.id"
                 @click="select(p)"
-                class="text-left border transition-all"
+                class="text-left transition-all rounded-xl overflow-hidden border shadow-sm"
                 :class="selectedId === p.id
-                    ? 'border-black ring-1 ring-black'
-                    : 'border-gray-200 hover:border-gray-400'"
+                    ? 'border-slate-900 ring-2 ring-slate-200 shadow-md'
+                    : 'border-slate-200 hover:border-slate-400 hover:shadow'
+                "
             >
                 <!-- image / placeholder -->
-                <div class="aspect-square bg-gray-100 overflow-hidden">
+                <div class="aspect-square bg-slate-100 overflow-hidden">
                     <img
                         v-if="p.image_path"
                         :src="`/storage/${p.image_path}`"
                         class="w-full h-full object-cover"
                     />
-                    <div v-else class="w-full h-full flex items-center justify-center text-gray-200 text-4xl select-none">
-                        ▪
+                    <div v-else class="w-full h-full flex items-center justify-center text-slate-300 text-4xl select-none">
+                        ◆
                     </div>
                 </div>
 
                 <!-- name + price -->
                 <div class="p-2.5">
-                    <p class="text-xs font-medium truncate leading-tight">{{ p.name }}</p>
-                    <p class="text-xs tabular-nums mt-0.5 text-gray-600">
+                    <p class="text-sm font-semibold truncate leading-tight text-slate-900">{{ p.name }}</p>
+                    <p class="text-xs tabular-nums mt-0.5 text-slate-600">
                         <template v-if="parseFloat(p.selling_price) > 0">
                             ${{ currency(p.selling_price) }}
                         </template>
                         <template v-else-if="parseFloat(p.markup_percentage ?? 0) > 0">
                             ${{ currency(parseFloat(p.computed_cost) * (1 + parseFloat(p.markup_percentage) / 100)) }}
-                            <span class="text-gray-300 text-xs"> +{{ p.markup_percentage }}%</span>
+                            <span class="text-slate-400 text-xs"> +{{ p.markup_percentage }}%</span>
                         </template>
                         <template v-else>
                             ${{ currency(p.computed_cost) }}
-                            <span class="text-gray-300 text-xs"> auto</span>
+                            <span class="text-slate-400 text-xs"> auto</span>
                         </template>
                     </p>
                 </div>
             </button>
         </div>
 
-        <div v-else class="py-20 text-center text-xs text-gray-300">
+        <div v-else class="py-20 text-center text-xs text-slate-400">
             No products yet.
-            <a href="/products" class="underline hover:text-gray-500">Create products</a>
+            <a href="/products" class="underline hover:text-slate-700">Create products</a>
             to use the POS.
         </div>
-    </AppLayout>
 </template>
