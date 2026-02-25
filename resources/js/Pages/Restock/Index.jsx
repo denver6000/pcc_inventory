@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, useForm, usePage, router } from '@inertiajs/react';
 import { ui } from '@/theme';
 
 const RestockIndex = ({ batches, items }) => {
@@ -58,10 +58,16 @@ const RestockIndex = ({ batches, items }) => {
     };
 
     const submitBatch = () => {
-        form.transform((data) => ({
-            ...data,
+        router.post('/restock', {
+            ...form.data,
             journal_date: props.currentDate,
-        })).post('/restock', { preserveScroll: true, onSuccess: closeForm });
+        }, {
+            preserveScroll: true,
+            onSuccess: closeForm,
+            onError: (errors) => {
+                Object.keys(errors).forEach((key) => form.setError(key, errors[key]));
+            },
+        });
     };
 
     const toggleExpand = (id) => setExpandedId(expandedId === id ? null : id);

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, useForm, usePage, router } from '@inertiajs/react';
 import { ui } from '@/theme';
 
 const ProduceIndex = ({ products }) => {
@@ -43,23 +43,34 @@ const ProduceIndex = ({ products }) => {
 
     const select = (p) => {
         setSelectedId(p.id);
-        form.setData({ ...form.data, product_id: p.id, quantity: 1, notes: '' });
+        form.setData({ product_id: p.id, quantity: 1, notes: '', journal_date: props.currentDate, batch_orders: {} });
         form.clearErrors();
         primeBatchOrders(p);
     };
 
     const submit = () => {
-        form.transform((data) => ({
-            ...data,
+        // Sync final values into form data before posting
+        const orders = normalisedOrders();
+        form.setData('product_id', selectedId);
+        form.setData('journal_date', props.currentDate);
+        form.setData('batch_orders', orders);
+
+        // Use router.post directly so the payload is sent synchronously
+        router.post('/produce', {
+            ...form.data,
             product_id: selectedId,
             journal_date: props.currentDate,
-            batch_orders: normalisedOrders(),
-        })).post('/produce', {
+            batch_orders: orders,
+        }, {
             preserveScroll: true,
             onSuccess: () => {
                 form.reset();
                 setSelectedId(null);
                 setBatchOrders({});
+            },
+            onError: (errors) => {
+                // Propagate server errors into the form
+                Object.keys(errors).forEach((key) => form.setError(key, errors[key]));
             },
         });
     };
