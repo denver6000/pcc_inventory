@@ -28,3 +28,4 @@ Route::post('/restock', [RestockController::class, 'store']);
 Route::get('/units', [UnitController::class, 'index']);
 Route::post('/units', [UnitController::class, 'store']);
 Route::delete('/units/{unit}', [UnitController::class, 'destroy']);
+

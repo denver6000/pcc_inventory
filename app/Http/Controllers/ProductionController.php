@@ -19,7 +19,7 @@ class ProductionController extends Controller
     {
         $date = $request->query('date', now()->toDateString());
 
-        $products = Product::with('ingredients.item.unit', 'ingredients.item.restockBatchItems.batch')
+        $products = Product::with('ingredients.item.unit', 'ingredients.item.restockBatchItems.batch.journal')
             ->latest()
             ->get()
             ->each->append('computed_cost');
