@@ -15,6 +15,8 @@ const RestockIndex = ({ batches, items }) => {
         items: [],
     });
 
+    const getItem = (id) => items.find((i) => i.id == id) ?? null;
+
     const liveTotal = useMemo(
         () =>
             form.data.items.reduce((sum, line) => {
@@ -23,8 +25,6 @@ const RestockIndex = ({ batches, items }) => {
             }, 0),
         [form.data.items, items],
     );
-
-    const getItem = (id) => items.find((i) => i.id == id) ?? null;
 
     const lineSubtotal = (line) => {
         const item = getItem(line.item_id);
