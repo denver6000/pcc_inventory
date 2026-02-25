@@ -50,7 +50,8 @@ class RestockController extends Controller
         ]);
 
         DB::transaction(function () use ($request) {
-            $journalDate = $request->input('journal_date', now()->toDateString());
+            // Accept optional journal_date; if blank or missing, default to today
+            $journalDate = $request->input('journal_date') ?: now()->toDateString();
 
             $journal = DailyJournal::create([
                 'journal_date' => $journalDate,
