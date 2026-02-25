@@ -49,10 +49,12 @@ const ProduceIndex = ({ products }) => {
     };
 
     const submit = () => {
-        form.setData('product_id', selectedId);
-        form.setData('journal_date', props.currentDate);
-        form.setData('batch_orders', normalisedOrders());
-        form.post('/produce', {
+        form.transform((data) => ({
+            ...data,
+            product_id: selectedId,
+            journal_date: props.currentDate,
+            batch_orders: normalisedOrders(),
+        })).post('/produce', {
             preserveScroll: true,
             onSuccess: () => {
                 form.reset();

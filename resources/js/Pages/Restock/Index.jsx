@@ -58,8 +58,10 @@ const RestockIndex = ({ batches, items }) => {
     };
 
     const submitBatch = () => {
-        form.setData('journal_date', props.currentDate);
-        form.post('/restock', { preserveScroll: true, onSuccess: closeForm });
+        form.transform((data) => ({
+            ...data,
+            journal_date: props.currentDate,
+        })).post('/restock', { preserveScroll: true, onSuccess: closeForm });
     };
 
     const toggleExpand = (id) => setExpandedId(expandedId === id ? null : id);
