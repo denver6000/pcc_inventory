@@ -4,6 +4,7 @@ use App\Http\Controllers\ItemController;
 use App\Http\Controllers\ItemConsumptionController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\SaleHistoryController;
 use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RestockController;
@@ -23,6 +24,7 @@ Route::delete('/products/{product}', [ProductController::class, 'destroy']);
 Route::post('/products/{product}/checkout', [CheckoutController::class, 'store']);
 
 Route::get('/pos', [PosController::class, 'index']);
+Route::get('/sales-history', [SaleHistoryController::class, 'index']);
 
 Route::get('/produce', [ProductionController::class, 'index']);
 Route::post('/produce', [ProductionController::class, 'store']);

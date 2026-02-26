@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Sale extends Model
 {
-    protected $fillable = ['product_id', 'quantity_sold', 'unit_price', 'total_price', 'notes'];
+    protected $fillable = ['product_id', 'quantity_sold', 'unit_price', 'total_price', 'sale_date', 'notes'];
 
     protected function casts(): array
     {
@@ -14,6 +14,7 @@ class Sale extends Model
             'quantity_sold' => 'float',
             'unit_price'    => 'float',
             'total_price'   => 'float',
+            'sale_date'     => 'date',
         ];
     }
 

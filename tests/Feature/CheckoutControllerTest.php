@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\DailyJournal;
 use App\Models\DailyJournalLine;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Services\StockLedger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -68,6 +69,8 @@ class CheckoutControllerTest extends TestCase
             'total_price'   => 150,
             'notes'         => 'Counter sale',
         ]);
+
+        $this->assertEquals('2026-02-26', Sale::firstOrFail()->sale_date?->toDateString());
 
         $this->assertDatabaseHas('daily_journals', [
             'kind' => 'consume',

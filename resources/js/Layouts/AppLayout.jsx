@@ -43,6 +43,9 @@ const AppLayout = ({ children }) => {
                             <Link href={navHref('/pos')} className={navLink(url.startsWith('/pos'))}>
                                 <span>POS</span>
                             </Link>
+                            <Link href={navHref('/sales-history')} className={navLink(url.startsWith('/sales-history'))}>
+                                <span>Sale History and Statistics</span>
+                            </Link>
                             <Link href={navHref('/produce')} className={navLink(url.startsWith('/produce'))}>
                                 <span>Produce</span>
                             </Link>

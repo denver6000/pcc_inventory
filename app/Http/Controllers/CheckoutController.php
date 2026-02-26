@@ -58,6 +58,7 @@ class CheckoutController extends Controller
                 'quantity_sold' => $qty,
                 'unit_price'    => $effectivePrice,
                 'total_price'   => round($effectivePrice * $qty, 2),
+                'sale_date'     => $journalDate,
                 'notes'         => $validated['notes'] ?? null,
             ]);
         });
