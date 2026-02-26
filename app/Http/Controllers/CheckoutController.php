@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DailyJournal;
+use App\Models\DailyJournalLine;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Services\StockLedger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -11,29 +14,23 @@ class CheckoutController extends Controller
 {
     public function store(Request $request, Product $product)
     {
-        $request->validate([
-            'quantity' => 'required|numeric|min:0.01',
-            'notes'    => 'nullable|string|max:500',
+        $validated = $request->validate([
+            'quantity'     => 'required|integer|min:1',
+            'notes'        => 'nullable|string|max:500',
+            'journal_date' => 'nullable|date',
         ]);
 
-        $qty = (float) $request->quantity;
+        $qty = (float) $validated['quantity'];
+        $journalDate = $validated['journal_date'] ?? now()->toDateString();
 
-        $product->load('ingredients.item.unit');
-
-        // Verify every ingredient has enough stock
-        $insufficient = [];
-        foreach ($product->ingredients as $ing) {
-            $required  = round($ing->quantity * $qty, 4);
-            $available = (float) $ing->item->current_stock;
-            if ($available < $required) {
-                $unit = optional($ing->item->unit)->abbreviation ?? '';
-                $insufficient[] = "{$ing->item->name}: need {$required} {$unit}, have {$available} {$unit}";
-            }
+        $available = StockLedger::productStocksAsOf($journalDate)[$product->id] ?? 0.0;
+        if ($available + 1e-9 < $qty) {
+            return back()->withErrors([
+                'checkout' => 'Insufficient product stock (available ' . round($available, 4) . ').',
+            ]);
         }
 
-        if (!empty($insufficient)) {
-            return back()->withErrors(['checkout' => implode(' · ', $insufficient)]);
-        }
+        $product->load('ingredients.item');
 
         $effectivePrice = $product->selling_price > 0
             ? (float) $product->selling_price
@@ -41,17 +38,27 @@ class CheckoutController extends Controller
                 ? round($product->computed_cost * (1 + $product->markup_percentage / 100), 2)
                 : $product->computed_cost);
 
-        DB::transaction(function () use ($product, $qty, $request, $effectivePrice) {
-            foreach ($product->ingredients as $ing) {
-                $ing->item->decrement('current_stock', round($ing->quantity * $qty, 4));
-            }
+        DB::transaction(function () use ($product, $qty, $validated, $effectivePrice, $journalDate) {
+            $journal = DailyJournal::create([
+                'journal_date' => $journalDate,
+                'kind'         => 'consume',
+                'notes'        => $validated['notes'] ?? null,
+            ]);
+
+            DailyJournalLine::create([
+                'daily_journal_id' => $journal->id,
+                'product_id'       => $product->id,
+                'direction'        => 'out',
+                'quantity'         => $qty,
+                'meta'             => ['reason' => 'sale'],
+            ]);
 
             Sale::create([
                 'product_id'    => $product->id,
                 'quantity_sold' => $qty,
                 'unit_price'    => $effectivePrice,
                 'total_price'   => round($effectivePrice * $qty, 2),
-                'notes'         => $request->notes,
+                'notes'         => $validated['notes'] ?? null,
             ]);
         });
 

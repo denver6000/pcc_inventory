@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { ui } from '@/theme';
 
 const PosIndex = ({ products }) => {
+    const { props } = usePage();
     const [selectedId, setSelectedId] = useState(null);
-    const sellForm = useForm({ quantity: 1, notes: '' });
+    const sellForm = useForm({ quantity: 1, notes: '', journal_date: props.currentDate });
 
     const product = useMemo(() => products.find((p) => p.id === selectedId) ?? null, [products, selectedId]);
 
@@ -33,41 +34,39 @@ const PosIndex = ({ products }) => {
         return (effectivePrice * qty).toFixed(2);
     }, [effectivePrice, sellForm.data.quantity]);
 
-    const ingredientStatus = (ing) => {
-        const qty = parseFloat(sellForm.data.quantity) || 0;
-        const required = parseFloat((ing.quantity * qty).toFixed(4));
-        const available = parseFloat(ing.item.current_stock);
-        return {
-            required,
-            available,
-            unit: ing.item.unit?.abbreviation ?? '',
-            ok: available >= required,
-        };
-    };
+    const quantity = useMemo(() => Number(sellForm.data.quantity) || 0, [sellForm.data.quantity]);
+    const availableStock = useMemo(() => parseFloat(product?.current_stock ?? 0), [product]);
 
     const canSell = useMemo(() => {
-        if (!product || !(parseFloat(sellForm.data.quantity) > 0)) return false;
-        return product.ingredients.every((ing) => ingredientStatus(ing).ok);
-    }, [product, sellForm.data.quantity]);
+        if (!product || !(quantity > 0) || !Number.isInteger(quantity)) return false;
+        return availableStock >= quantity;
+    }, [product, quantity, availableStock]);
+
+    const projectedRemaining = useMemo(
+        () => Math.max(0, availableStock - quantity).toFixed(4),
+        [availableStock, quantity],
+    );
 
     const select = (p) => {
         if (selectedId === p.id) {
             setSelectedId(null);
             sellForm.reset();
-            sellForm.setData('quantity', 1);
+            sellForm.setData((data) => ({ ...data, quantity: 1, journal_date: props.currentDate }));
             return;
         }
         setSelectedId(p.id);
         sellForm.reset();
-        sellForm.setData('quantity', 1);
+        sellForm.setData((data) => ({ ...data, quantity: 1, journal_date: props.currentDate }));
     };
 
     const cancel = () => {
         setSelectedId(null);
         sellForm.reset();
+        sellForm.setData((data) => ({ ...data, quantity: 1, journal_date: props.currentDate }));
     };
 
     const submit = () => {
+        sellForm.setData('journal_date', props.currentDate);
         sellForm.post(`/products/${selectedId}/checkout`, { onSuccess: cancel });
     };
 
@@ -83,9 +82,9 @@ const PosIndex = ({ products }) => {
             <div className="flex items-center justify-between mb-5">
                 <div>
                     <h1 className={ui.heading}>Point of Sale</h1>
-                    <p className="text-xs text-slate-500">Click a product to stage a sale; stock guards show per-ingredient availability.</p>
+                    <p className="text-xs text-slate-500">Select a product, enter quantity, and confirm checkout.</p>
                 </div>
-                <p className="text-xs text-slate-500">Live recipe-based pricing</p>
+                <p className="text-xs text-slate-500">Date: {props.currentDate}</p>
             </div>
 
             {selectedId && product && (
@@ -110,6 +109,10 @@ const PosIndex = ({ products }) => {
                                     {isPriceAuto && <span className="text-slate-400 ml-1">(recipe cost)</span>}
                                     {isPriceMarkup && <span className="text-slate-400 ml-1">(+{product.markup_percentage}% markup)</span>}
                                 </p>
+                                <p className="text-xs text-slate-500">
+                                    Stock:
+                                    <span className="tabular-nums text-slate-900 font-semibold ml-1">{currency(product.current_stock)}</span>
+                                </p>
                             </div>
                         </div>
 
@@ -120,8 +123,9 @@ const PosIndex = ({ products }) => {
                             <input
                                 type="number"
                                 value={sellForm.data.quantity}
-                                min="0.01"
+                                min="1"
                                 step="1"
+                                inputMode="numeric"
                                 onChange={(e) => sellForm.setData('quantity', e.target.value)}
                                 className={inputCls}
                             />
@@ -149,7 +153,7 @@ const PosIndex = ({ products }) => {
                                 onClick={submit}
                                 disabled={sellForm.processing || !canSell}
                                 className={btnPrimary}
-                                title={!canSell ? 'Insufficient stock for one or more ingredients' : ''}
+                                title={!canSell ? 'Insufficient product stock' : ''}
                             >
                                 Confirm Sale
                             </button>
@@ -159,27 +163,14 @@ const PosIndex = ({ products }) => {
                         </div>
                     </div>
 
-                    {product.ingredients.length > 0 && (
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-                            {product.ingredients.map((ing) => (
-                                <div
-                                    key={ing.id}
-                                    className={`flex items-center gap-1 text-xs px-3 py-1 rounded-full border ${
-                                        ingredientStatus(ing).ok
-                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                                    }`}
-                                >
-                                    <span>{ingredientStatus(ing).ok ? '✓' : '!'}</span>
-                                    {ing.item.name}
-                                    <span className="opacity-50">
-                                        {ingredientStatus(ing).required}/{ingredientStatus(ing).available}
-                                        {ingredientStatus(ing).unit}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-4 text-xs text-slate-600">
+                        <p>
+                            Available: <span className="font-semibold text-slate-900 tabular-nums">{currency(availableStock)}</span>
+                        </p>
+                        <p>
+                            After checkout: <span className="font-semibold text-slate-900 tabular-nums">{projectedRemaining}</span>
+                        </p>
+                    </div>
 
                     {sellForm.errors.checkout && (
                         <p className="text-xs text-red-500 mt-2">{sellForm.errors.checkout}</p>
@@ -221,6 +212,9 @@ const PosIndex = ({ products }) => {
                                             <span className="text-slate-400 text-xs"> auto</span>
                                         </>
                                     )}
+                                </p>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    Stock: <span className="font-semibold tabular-nums">{currency(p.current_stock)}</span>
                                 </p>
                             </div>
                         </button>
