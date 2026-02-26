@@ -35,6 +35,92 @@ foreach ($lines as $line) {
 }
 ```
 
+## Carry-over / Batch Configuration (frontend)
+
+The Produce page is modularised into focused files under `resources/js/Pages/Produce/`:
+
+| File | Purpose |
+|---|---|
+| `Index.jsx` | Slim orchestrator: product selection, form state, submission, layout composition |
+| `helpers.js` | Pure utilities: `batchDate`, `sortByTimeline`, `fmtDate`, `currency` |
+| `useBatchConfig.js` | Custom hook: all batch-config state, memos, DnD, auto-assign, reset |
+| `BatchConfigPanel.jsx` | Batch Configuration card UI (per-ingredient cards with mode toggle) |
+| `IngredientCheck.jsx` | Ingredient Check table (need / available / sourced / status) |
+| `ProductCards.jsx` | Product selection card grid |
+
+### Helpers (`helpers.js`)
+
+```js
+export const batchDate = (line) =>
+    line.batch?.journal?.journal_date ?? line.batch?.created_at ?? line.created_at ?? '1970-01-01';
+export const sortByTimeline = (a, b) => /* compare batchDate(a) vs batchDate(b) */;
+```
+
+All sort operations use `batchDate()` → `journal_date` (the timeline date) as primary key.
+`created_at` is only a last-resort fallback inside `batchDate`.
+
+### `useBatchConfig(product, quantity)` hook
+
+Returns all batch-config state and functions. Called in `Index.jsx` and threaded to child components.
+
+**Internal state:**
+
+| State var | Shape | Purpose |
+|---|---|---|
+| `batchOrders` | `{ [itemId]: [{id, order}] }` | User-defined depletion sequence (sequential mode) |
+| `batchModes` | `{ [itemId]: 'sequential' \| 'distributed' }` | Per-ingredient mode selection |
+| `distributedAmounts` | `{ [itemId]: { [batchItemId]: number } }` | User-entered allocations (distributed mode) |
+
+**Key memos:**
+
+1. **`carryoverPlan`** — shape `{ [itemId]: { [batchItemId]: takeAmount } }`
+   - Sequential: user order → `sortByTimeline` FIFO fallback, waterfall depletion
+   - Distributed: user-entered amounts, clamped to `min(userAmt, available, needed − totalTaken)`
+2. **`batchConfigData`** — extends carryoverPlan with running "still needed" waterfall per ingredient
+
+**Exposed functions:**
+
+| Function | Purpose |
+|---|---|
+| `modeFor(itemId)` / `setMode(itemId, mode)` | Get/set mode ('sequential' \| 'distributed') |
+| `autoAssignIngredient(itemId)` | FIFO auto-assign for one ingredient (sequential) |
+| `primeBatchOrders()` | FIFO-assign ALL ingredients of current product (sequential) |
+| `autoDistributeEvenly(itemId)` | Spread needed amount evenly across batches (distributed) |
+| `resetIngredient(itemId)` | Clear orders (sequential) or amounts (distributed) for one ingredient |
+| `initForProduct(p)` | Full reset for a newly selected product (FIFO + sequential defaults) |
+| `resetAll()` | Clear all batch config state |
+| `handleDragStart/Enter/End` | HTML5 DnD handlers for sequential row reordering |
+| `orderFor` / `setOrder` | Get/set manual order number for a batch line |
+| `normalisedOrders()` | Build `batch_orders` payload for form submission |
+
+### UI structure
+
+The page layout is:
+1. **Production Plan** (left, in `Index.jsx`) + **Ingredient Check** (right, `IngredientCheck.jsx`) — 2-column grid
+2. **Batch Configuration** (`BatchConfigPanel.jsx`) — full-width card, only visible when a product is selected
+3. **Products** (`ProductCards.jsx`) — product card grid for selection
+
+Each ingredient in Batch Configuration gets:
+- **Header:** name, fulfilled/unfulfilled badge, **mode toggle** (Sequential / Distributed pill), per-mode action button (↻ FIFO or ⚖ Even), **✕ Reset** button
+- **Stats bar:** Need / Sourced / Shortfall (if any) + progress bar
+- **Sequential table:** `⠿# | Batch | Date | In stock | → Take | Still needed | Cost/unit` — draggable rows
+- **Distributed table:** `Batch | Date | In stock | Allocate [input, step=1] | Resolved | Cost/unit` — editable allocation inputs (stepper increments by 1, manual decimal entry allowed)
+
+### Row highlight colours
+
+| Colour | Condition | Meaning |
+|---|---|---|
+| `bg-rose-50` + rose pill | `take >= available − ε` | Batch **fully depleted** this run |
+| `bg-amber-50` + amber pill | `0 < take < available` | Batch **partially used** |
+| No colour | `take == 0` | Batch not touched |
+
+### Ingredient Check "Sourced" column
+
+The simplified Ingredient Check table (top right) shows a compact summary per ingredient:
+`5.0000 from 3 batches` — sourced amount + count, coloured green (fulfilled) or amber (unfulfilled).
+
+**`carryoverPlan` + `batchConfigData` are preview only.** The authoritative journal lines are written by `ProductionController::store`.
+
 ## Shortage check
 
 ```php
