@@ -15,7 +15,7 @@ class SaleHistoryController extends Controller
         $end = Carbon::parse($request->query('date', now()->toDateString()))->toDateString();
         $start = Carbon::parse($end)->subDays(29)->toDateString();
 
-        $sales = Sale::with('product:id,name')
+        $sales = Sale::with('product:id,name,image_path')
             ->where(function ($q) use ($end) {
                 $q->whereDate('sale_date', '<=', $end)
                     ->orWhere(function ($q2) use ($end) {
@@ -35,6 +35,7 @@ class SaleHistoryController extends Controller
                 'product' => [
                     'id' => $sale->product?->id,
                     'name' => $sale->product?->name ?? 'Unknown Product',
+                    'image_path' => $sale->product?->image_path,
                 ],
                 'quantity_sold' => (float) $sale->quantity_sold,
                 'unit_price' => (float) $sale->unit_price,

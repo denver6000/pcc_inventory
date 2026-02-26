@@ -114,4 +114,64 @@ class CheckoutControllerTest extends TestCase
 
         $this->assertDatabaseCount('sales', 0);
     }
+
+    public function test_bulk_checkout_creates_sales_for_multiple_products(): void
+    {
+        $brownie = $this->createProduct('Brownie', 75);
+        $cookie = $this->createProduct('Cookie', 35);
+
+        $this->seedProductStock($brownie, 10, '2026-02-26');
+        $this->seedProductStock($cookie, 10, '2026-02-26');
+
+        $this->post('/checkout/bulk', [
+            'journal_date' => '2026-02-26',
+            'notes' => 'Bulk POS order',
+            'items' => [
+                ['product_id' => $brownie->id, 'quantity' => 2],
+                ['product_id' => $cookie->id, 'quantity' => 3],
+            ],
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('sales', [
+            'product_id' => $brownie->id,
+            'quantity_sold' => 2,
+            'total_price' => 150,
+            'notes' => 'Bulk POS order',
+        ]);
+
+        $this->assertDatabaseHas('sales', [
+            'product_id' => $cookie->id,
+            'quantity_sold' => 3,
+            'total_price' => 105,
+            'notes' => 'Bulk POS order',
+        ]);
+
+        $this->assertEquals(2, DailyJournal::where('kind', 'produce')->count());
+        $this->assertEquals(1, DailyJournal::where('kind', 'consume')->count());
+
+        $stocks = StockLedger::productStocksAsOf('2026-02-26');
+        $this->assertEquals(8.0, $stocks[$brownie->id]);
+        $this->assertEquals(7.0, $stocks[$cookie->id]);
+    }
+
+    public function test_bulk_checkout_rejects_when_any_product_has_insufficient_stock(): void
+    {
+        $brownie = $this->createProduct('Brownie', 75);
+        $cookie = $this->createProduct('Cookie', 35);
+
+        $this->seedProductStock($brownie, 1, '2026-02-26');
+        $this->seedProductStock($cookie, 10, '2026-02-26');
+
+        $this->post('/checkout/bulk', [
+            'journal_date' => '2026-02-26',
+            'items' => [
+                ['product_id' => $brownie->id, 'quantity' => 2],
+                ['product_id' => $cookie->id, 'quantity' => 3],
+            ],
+        ])->assertSessionHasErrors('checkout');
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertEquals(2, DailyJournal::where('kind', 'produce')->count());
+        $this->assertEquals(0, DailyJournal::where('kind', 'consume')->count());
+    }
 }

@@ -21,6 +21,7 @@ Route::get('/products', [ProductController::class, 'index']);
 Route::post('/products', [ProductController::class, 'store']);
 Route::put('/products/{product}', [ProductController::class, 'update']);
 Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+Route::post('/checkout/bulk', [CheckoutController::class, 'bulkStore']);
 Route::post('/products/{product}/checkout', [CheckoutController::class, 'store']);
 
 Route::get('/pos', [PosController::class, 'index']);

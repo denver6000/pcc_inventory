@@ -4,70 +4,88 @@ import { ui } from '@/theme';
 
 const PosIndex = ({ products }) => {
     const { props } = usePage();
-    const [selectedId, setSelectedId] = useState(null);
-    const sellForm = useForm({ quantity: 1, notes: '', journal_date: props.currentDate });
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [quantities, setQuantities] = useState({});
+    const sellForm = useForm({ notes: '', journal_date: props.currentDate, items: [] });
 
-    const product = useMemo(() => products.find((p) => p.id === selectedId) ?? null, [products, selectedId]);
-
-    const effectivePrice = useMemo(() => {
-        if (!product) return 0;
+    const effectivePrice = (product) => {
         const sp = parseFloat(product.selling_price);
         if (sp > 0) return sp;
         const markup = parseFloat(product.markup_percentage ?? 0);
         const cost = parseFloat(product.computed_cost ?? 0);
         if (markup > 0) return cost * (1 + markup / 100);
         return cost;
-    }, [product]);
-
-    const isPriceAuto = useMemo(
-        () => product && !(parseFloat(product.selling_price) > 0) && !(parseFloat(product.markup_percentage ?? 0) > 0),
-        [product],
-    );
-
-    const isPriceMarkup = useMemo(
-        () => product && !(parseFloat(product.selling_price) > 0) && parseFloat(product.markup_percentage ?? 0) > 0,
-        [product],
-    );
-
-    const total = useMemo(() => {
-        const qty = parseFloat(sellForm.data.quantity) || 0;
-        return (effectivePrice * qty).toFixed(2);
-    }, [effectivePrice, sellForm.data.quantity]);
-
-    const quantity = useMemo(() => Number(sellForm.data.quantity) || 0, [sellForm.data.quantity]);
-    const availableStock = useMemo(() => parseFloat(product?.current_stock ?? 0), [product]);
-
-    const canSell = useMemo(() => {
-        if (!product || !(quantity > 0) || !Number.isInteger(quantity)) return false;
-        return availableStock >= quantity;
-    }, [product, quantity, availableStock]);
-
-    const projectedRemaining = useMemo(
-        () => Math.max(0, availableStock - quantity).toFixed(4),
-        [availableStock, quantity],
-    );
-
-    const select = (p) => {
-        if (selectedId === p.id) {
-            setSelectedId(null);
-            sellForm.reset();
-            sellForm.setData((data) => ({ ...data, quantity: 1, journal_date: props.currentDate }));
-            return;
-        }
-        setSelectedId(p.id);
-        sellForm.reset();
-        sellForm.setData((data) => ({ ...data, quantity: 1, journal_date: props.currentDate }));
     };
 
-    const cancel = () => {
-        setSelectedId(null);
+    const selectedProducts = useMemo(
+        () => products.filter((p) => selectedIds.includes(p.id)),
+        [products, selectedIds],
+    );
+
+    const lineRows = useMemo(
+        () => selectedProducts.map((p) => {
+            const qty = Number(quantities[p.id] ?? 1);
+            const price = effectivePrice(p);
+            const stock = parseFloat(p.current_stock ?? 0);
+            const validQty = Number.isInteger(qty) && qty >= 1;
+            return {
+                product: p,
+                qty,
+                stock,
+                price,
+                subtotal: price * (validQty ? qty : 0),
+                canSell: validQty && stock >= qty,
+            };
+        }),
+        [selectedProducts, quantities],
+    );
+
+    const canCheckout = useMemo(() => lineRows.length > 0 && lineRows.every((r) => r.canSell), [lineRows]);
+
+    const grandTotal = useMemo(
+        () => lineRows.reduce((sum, row) => sum + row.subtotal, 0).toFixed(2),
+        [lineRows],
+    );
+
+    const toggleSelect = (product) => {
+        setSelectedIds((prev) => {
+            if (prev.includes(product.id)) {
+                const next = prev.filter((id) => id !== product.id);
+                setQuantities((qPrev) => {
+                    const nextQ = { ...qPrev };
+                    delete nextQ[product.id];
+                    return nextQ;
+                });
+                return next;
+            }
+            setQuantities((qPrev) => ({ ...qPrev, [product.id]: qPrev[product.id] ?? 1 }));
+            return [...prev, product.id];
+        });
+    };
+
+    const clearSelection = () => {
+        setSelectedIds([]);
+        setQuantities({});
         sellForm.reset();
-        sellForm.setData((data) => ({ ...data, quantity: 1, journal_date: props.currentDate }));
+        sellForm.setData((data) => ({ ...data, notes: '', journal_date: props.currentDate, items: [] }));
     };
 
     const submit = () => {
-        sellForm.setData('journal_date', props.currentDate);
-        sellForm.post(`/products/${selectedId}/checkout`, { onSuccess: cancel });
+        const itemsPayload = lineRows.map((row) => ({
+            product_id: row.product.id,
+            quantity: row.qty,
+        }));
+
+        sellForm
+            .transform((data) => ({
+                ...data,
+                journal_date: props.currentDate,
+                items: itemsPayload,
+            }))
+            .post('/checkout/bulk', {
+                preserveScroll: true,
+                onSuccess: clearSelection,
+            });
     };
 
     const currency = (n) => parseFloat(n ?? 0).toFixed(2);
@@ -82,62 +100,78 @@ const PosIndex = ({ products }) => {
             <div className="flex items-center justify-between mb-5">
                 <div>
                     <h1 className={ui.heading}>Point of Sale</h1>
-                    <p className="text-xs text-slate-500">Select a product, enter quantity, and confirm checkout.</p>
+                    <p className="text-xs text-slate-500">Multi-select products, assign quantities, then checkout in one action.</p>
                 </div>
                 <p className="text-xs text-slate-500">Date: {props.currentDate}</p>
             </div>
 
-            {selectedId && product && (
+            {selectedProducts.length > 0 && (
                 <div className={[ui.card, 'p-5 mb-5'].join(' ')}>
-                    <div className="flex flex-wrap items-end gap-4">
-                        <div className="flex items-center gap-3 min-w-48">
-                            {product.image_path ? (
-                                <img
-                                    src={`/storage/${product.image_path}`}
-                                    className="h-12 w-12 object-cover flex-shrink-0 rounded-lg border border-slate-200"
-                                />
-                            ) : (
-                                <div className="h-12 w-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-lg flex-shrink-0">
-                                    ◆
+                    <div className="flex items-center justify-between mb-3">
+                        <p className={ui.subheading}>Checkout Basket ({selectedProducts.length})</p>
+                        <p className="text-xs text-slate-500">Grand total: <span className="font-semibold text-slate-900 tabular-nums">${grandTotal}</span></p>
+                    </div>
+
+                    <div className="space-y-2">
+                        {lineRows.map((row) => (
+                            <div key={row.product.id} className="grid grid-cols-[1fr_92px_120px_120px] gap-2 items-center border border-slate-100 rounded-lg p-2.5">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    {row.product.image_path ? (
+                                        <img
+                                            src={`/storage/${row.product.image_path}`}
+                                            className="h-10 w-10 object-cover flex-shrink-0 rounded-lg border border-slate-200"
+                                        />
+                                    ) : (
+                                        <div className="h-10 w-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-sm flex-shrink-0">
+                                            ◆
+                                        </div>
+                                    )}
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-slate-900 truncate">{row.product.name}</p>
+                                        <p className="text-xs text-slate-500">
+                                            Unit price: <span className="font-semibold tabular-nums text-slate-900">${currency(row.price)}</span>
+                                            <span className="ml-2">Stock: <span className="font-semibold tabular-nums text-slate-900">{currency(row.stock)}</span></span>
+                                        </p>
+                                    </div>
                                 </div>
-                            )}
-                            <div>
-                                <p className="text-sm font-semibold text-slate-900">{product.name}</p>
-                                <p className="text-xs text-slate-500">
-                                    Unit price:
-                                    <span className="tabular-nums text-slate-900 font-semibold">${currency(effectivePrice)}</span>
-                                    {isPriceAuto && <span className="text-slate-400 ml-1">(recipe cost)</span>}
-                                    {isPriceMarkup && <span className="text-slate-400 ml-1">(+{product.markup_percentage}% markup)</span>}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                    Stock:
-                                    <span className="tabular-nums text-slate-900 font-semibold ml-1">{currency(product.current_stock)}</span>
-                                </p>
+
+                                <div>
+                                    <label className={ui.fieldLabel}>Qty</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        inputMode="numeric"
+                                        value={quantities[row.product.id] ?? 1}
+                                        onChange={(e) => {
+                                            const next = e.target.value;
+                                            setQuantities((prev) => ({ ...prev, [row.product.id]: next }));
+                                        }}
+                                        className={inputCls}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className={ui.fieldLabel}>Subtotal</label>
+                                    <div className="px-3 py-2 border border-slate-200 bg-slate-50 text-sm font-semibold tabular-nums rounded-lg">
+                                        ${currency(row.subtotal)}
+                                    </div>
+                                </div>
+
+                                <div className="text-right">
+                                    <button type="button" onClick={() => toggleSelect(row.product)} className={ui.button.ghost}>
+                                        Remove
+                                    </button>
+                                    {!row.canSell && (
+                                        <p className="text-[11px] text-rose-600 mt-1">Insufficient stock / invalid qty</p>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        ))}
+                    </div>
 
-                        <div className="w-24">
-                            <label className={ui.fieldLabel}>
-                                Qty <span className="text-red-400">*</span>
-                            </label>
-                            <input
-                                type="number"
-                                value={sellForm.data.quantity}
-                                min="1"
-                                step="1"
-                                inputMode="numeric"
-                                onChange={(e) => sellForm.setData('quantity', e.target.value)}
-                                className={inputCls}
-                            />
-                            {sellForm.errors.quantity && <p className="text-xs text-red-500 mt-0.5">{sellForm.errors.quantity}</p>}
-                        </div>
-
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
                         <div>
-                            <label className={ui.fieldLabel}>Total</label>
-                            <div className="px-3 py-2 border border-slate-200 bg-slate-50 text-sm font-semibold tabular-nums w-28 rounded-lg">${total}</div>
-                        </div>
-
-                        <div className="flex-1 min-w-36">
                             <label className={ui.fieldLabel}>Notes</label>
                             <input
                                 type="text"
@@ -147,34 +181,25 @@ const PosIndex = ({ products }) => {
                                 placeholder="Optional"
                             />
                         </div>
-
-                        <div className="flex gap-2 pb-px">
+                        <div className="flex gap-2">
                             <button
                                 onClick={submit}
-                                disabled={sellForm.processing || !canSell}
+                                disabled={sellForm.processing || !canCheckout}
                                 className={btnPrimary}
-                                title={!canSell ? 'Insufficient product stock' : ''}
+                                title={!canCheckout ? 'Fix quantities or stock issues first' : ''}
                             >
-                                Confirm Sale
+                                Confirm All Sales
                             </button>
-                            <button onClick={cancel} className={btnGhost}>
-                                Cancel
+                            <button onClick={clearSelection} className={btnGhost}>
+                                Clear
                             </button>
                         </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-4 text-xs text-slate-600">
-                        <p>
-                            Available: <span className="font-semibold text-slate-900 tabular-nums">{currency(availableStock)}</span>
-                        </p>
-                        <p>
-                            After checkout: <span className="font-semibold text-slate-900 tabular-nums">{projectedRemaining}</span>
-                        </p>
                     </div>
 
                     {sellForm.errors.checkout && (
                         <p className="text-xs text-red-500 mt-2">{sellForm.errors.checkout}</p>
                     )}
+                    {sellForm.errors.items && <p className="text-xs text-red-500 mt-2">{sellForm.errors.items}</p>}
                 </div>
             )}
 
@@ -183,9 +208,9 @@ const PosIndex = ({ products }) => {
                     {products.map((p) => (
                         <button
                             key={p.id}
-                            onClick={() => select(p)}
+                            onClick={() => toggleSelect(p)}
                             className={`text-left transition-all rounded-xl overflow-hidden border shadow-sm ${
-                                selectedId === p.id ? 'border-slate-900 ring-2 ring-slate-200 shadow-md' : 'border-slate-200 hover:border-slate-400 hover:shadow'
+                                selectedIds.includes(p.id) ? 'border-slate-900 ring-2 ring-slate-200 shadow-md' : 'border-slate-200 hover:border-slate-400 hover:shadow'
                             }`}
                         >
                             <div className="aspect-square bg-slate-100 overflow-hidden">
