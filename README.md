@@ -1,59 +1,141 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# PCC Inventory System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+PCC Inventory System is a Laravel 12 + Inertia.js (React 18) single-page inventory app for managing:
 
-## About Laravel
+- item master data
+- product recipes
+- restocking
+- production
+- stock consumption
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+The system is built around an **append-only stock ledger** and supports **as-of date** stock views.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Tech Stack
 
-## Learning Laravel
+- **Backend:** Laravel 12, PHP 8.2+
+- **Frontend:** Inertia.js + React 18 (JSX)
+- **Build Tooling:** Vite 7
+- **Styling:** Tailwind CSS v4 via PostCSS
+- **Database for tests:** SQLite in-memory
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+---
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Core Concept: Ledger-Derived Stock
 
-## Laravel Sponsors
+Stock is not treated as mutable state.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+For a date $D$:
 
-### Premium Partners
+$$
+	ext{stock as-of } D = \sum(\text{in lines up to } D) - \sum(\text{out lines up to } D)
+$$
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+All stock movement is recorded in `daily_journal_lines` and read through `App\Services\StockLedger`.
 
-## Contributing
+> `current_stock` / `quantity_added` fields are display slots hydrated from the ledger. Do not update these directly.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+---
 
-## Code of Conduct
+## Available Sections
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- `/` — Items
+- `/products` — Products and recipe management
+- `/produce` — Production runs (consume ingredients, add finished goods)
+- `/restock` — Item restocking and batch creation
+- `/units` — Units CRUD
 
-## Security Vulnerabilities
+Other routes such as POS/checkout/sales-history exist in code for legacy/ongoing work and are not part of the main inventory workflow.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
+
+## Quick Start
+
+### 1) Install and bootstrap
+
+```bash
+composer run setup
+php artisan storage:link
+```
+
+### 2) Run in development
+
+```bash
+composer run dev
+```
+
+This starts:
+
+- Laravel server on port **8001**
+- queue listener
+- Vite dev server
+
+### 3) Run tests
+
+```bash
+composer run test
+```
+
+---
+
+## Useful Commands
+
+### Fresh DB + default seed
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+### Scenario seeders
+
+```bash
+php artisan migrate:fresh --seed --seeder="Database\Seeders\Scenarios\CarryoverScenarioSeeder"
+php artisan migrate:fresh --seed --seeder="Database\Seeders\Scenarios\ShortageScenarioSeeder"
+```
+
+---
+
+## Date-Aware (Time Travel) Behavior
+
+- GET pages read `?date=YYYY-MM-DD` (defaults to today).
+- Mutations can accept `journal_date`; otherwise current date is used.
+- The selected date is shared to all Inertia pages and preserved across navigation.
+
+This allows auditing and verifying inventory state for historical dates.
+
+---
+
+## Ledger Rules
+
+1. **Append only**: create journal lines, do not mutate stock counters.
+2. **Restock**: create `restock` journals with `in` lines.
+3. **Produce**: create `produce` journals with ingredient `out` lines and product `in` lines.
+4. **Consume**: create `consume` journals with `out` lines.
+5. Wrap journal-creating operations in `DB::transaction()`.
+
+---
+
+## Project Structure (High Level)
+
+- `app/Http/Controllers` — page + mutation controllers
+- `app/Services/StockLedger.php` — stock computation helpers
+- `resources/js/Pages` — Inertia React pages
+- `routes/web.php` — web routes
+- `tests/Feature` — inventory flow tests
+- `tests/Unit/StockLedgerTest.php` — ledger math coverage
+
+---
+
+## Testing Notes
+
+- PHPUnit 11 with in-memory SQLite.
+- DB tests use `RefreshDatabase`.
+- Stock assertions should use `StockLedger` helpers (`itemStockAsOf`, `batchBalancesAsOf`, etc.).
+- Avoid direct writes to `current_stock` in tests.
+
+---
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project is open-sourced under the [MIT license](https://opensource.org/licenses/MIT).
